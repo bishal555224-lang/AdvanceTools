@@ -1,0 +1,49 @@
+name: Build Secure Android APK
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      # 1. Setup Environment
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+
+      - name: Setup Java
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+
+      # 2. Install System Dependencies (Needed for Cython/Kivy)
+      - name: Install System Libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev
+
+      # 3. Install Buildozer & Cython
+      - name: Install Buildozer
+        run: |
+          pip install --upgrade pip
+          pip install buildozer
+          pip install cython==0.29.33
+
+      # 4. Build APK (This takes time)
+      - name: Build with Buildozer
+        run: |
+          yes | buildozer -v android debug
+
+      # 5. Upload APK
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: AdvanceTools-Secure-APK
+          path: bin/*.apk
