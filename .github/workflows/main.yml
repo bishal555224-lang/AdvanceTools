@@ -1,4 +1,4 @@
-name: Build Secure Android APK
+name: Build Android APK
 
 on:
   push:
@@ -9,21 +9,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Updated to v4
       - uses: actions/checkout@v4
 
-      # Updated to v5
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-
-      # Updated to v4 (Using Java 17 for better compatibility)
+      # Setup Java 17 (Required for new Android SDK)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
+
+      # Setup Python 3.9
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
 
       # Install System Dependencies
       - name: Install System Libraries
@@ -32,7 +31,7 @@ jobs:
           sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
           sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev
 
-      # Install Buildozer & Cython
+      # Install Buildozer & Cython (Here is where we install Cython for security)
       - name: Install Buildozer
         run: |
           pip install --upgrade pip
@@ -44,9 +43,9 @@ jobs:
         run: |
           yes | buildozer -v android debug
 
-      # THE FIX: Updated to v4
+      # Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AdvanceTools-Secure-APK
+          name: AdvanceTools-Fixed-APK
           path: bin/*.apk
