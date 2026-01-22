@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Secure Android APK
 
 on:
   push:
@@ -6,7 +6,6 @@ on:
 
 jobs:
   build:
-    # CHANGED: Using ubuntu-22.04 (More stable for Android Builds)
     runs-on: ubuntu-22.04
 
     steps:
@@ -29,15 +28,24 @@ jobs:
       - name: Install System Libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
-          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev
+          sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev git zip unzip
+          sudo apt-get install -y autoconf libtool pkg-config zlib1g-dev libncurses-dev cmake
 
-      # Install Buildozer & Cython (Security)
-      - name: Install Buildozer
+      # Install Tools (Buildozer + Cython + Minifier)
+      - name: Install Build Tools
         run: |
           pip install --upgrade pip
           pip install buildozer
           pip install cython==0.29.33
+          pip install python-minifier
+
+      # SECURITY STEP: Obfuscate Code
+      # This makes the code unreadable in MT Manager
+      - name: Obfuscate Main Code
+        run: |
+          # Rename local variables, remove comments, remove docstrings
+          # Preserving Globals to keep Kivy working
+          pyminify main.py --output main.py --no-rename-globals --remove-literal-statements
 
       # Build APK
       - name: Build with Buildozer
@@ -48,5 +56,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AdvanceTools-Pro-APK
+          name: AdvanceTools-Secure-APK
           path: bin/*.apk
