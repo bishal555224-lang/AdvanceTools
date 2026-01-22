@@ -9,41 +9,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      # Updated to v4
+      - uses: actions/checkout@v4
 
-      # 1. Setup Environment
+      # Updated to v5
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
+      # Updated to v4 (Using Java 17 for better compatibility)
       - name: Setup Java
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v4
         with:
-          java-version: 1.8
+          distribution: 'temurin'
+          java-version: '17'
 
-      # 2. Install System Dependencies (Needed for Cython/Kivy)
+      # Install System Dependencies
       - name: Install System Libraries
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
           sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev
 
-      # 3. Install Buildozer & Cython
+      # Install Buildozer & Cython
       - name: Install Buildozer
         run: |
           pip install --upgrade pip
           pip install buildozer
           pip install cython==0.29.33
 
-      # 4. Build APK (This takes time)
+      # Build APK
       - name: Build with Buildozer
         run: |
           yes | buildozer -v android debug
 
-      # 5. Upload APK
+      # THE FIX: Updated to v4
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: AdvanceTools-Secure-APK
           path: bin/*.apk
