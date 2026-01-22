@@ -6,12 +6,13 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # CHANGED: Using ubuntu-22.04 (More stable for Android Builds)
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4
 
-      # Setup Java 17 (Required for new Android SDK)
+      # Setup Java 17
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -31,7 +32,7 @@ jobs:
           sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
           sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev
 
-      # Install Buildozer & Cython (Here is where we install Cython for security)
+      # Install Buildozer & Cython (Security)
       - name: Install Buildozer
         run: |
           pip install --upgrade pip
@@ -47,5 +48,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AdvanceTools-Fixed-APK
+          name: AdvanceTools-Pro-APK
           path: bin/*.apk
