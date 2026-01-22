@@ -8,10 +8,10 @@ source.include_exts = py,png,jpg,kv,atlas
 
 version = 3.0.0
 
-# REQUIREMENTS FIX:
-# Removed 'cython' and 'openssl' (They cause the crash)
-# Added 'pillow' for images/icons
-requirements = python3,kivy==2.2.0,kivymd==1.1.1,requests,beautifulsoup4,plyer,pillow
+# REQUIREMENTS FIXED:
+# Removed 'pillow' (Not needed for KivyMD icons, causes crash)
+# Removed 'cython' (Security handled in main.yml)
+requirements = python3,kivy==2.2.0,kivymd==1.1.1,requests,beautifulsoup4,plyer,urllib3,idna,chardet
 
 orientation = portrait
 fullscreen = 0
