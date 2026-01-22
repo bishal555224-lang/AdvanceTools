@@ -40,12 +40,10 @@ jobs:
           pip install python-minifier
 
       # SECURITY STEP: Obfuscate Code
-      # This makes the code unreadable in MT Manager
+      # FIXED: Removed '--no-rename-globals' because it is the default behavior now
       - name: Obfuscate Main Code
         run: |
-          # Rename local variables, remove comments, remove docstrings
-          # Preserving Globals to keep Kivy working
-          pyminify main.py --output main.py --no-rename-globals --remove-literal-statements
+          pyminify main.py --output main.py --remove-literal-statements
 
       # Build APK
       - name: Build with Buildozer
