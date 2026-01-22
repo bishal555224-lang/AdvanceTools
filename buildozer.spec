@@ -20,7 +20,8 @@ version = 3.0.0
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy==2.2.0,kivymd==1.1.1,requests,beautifulsoup4,plyer,urllib3,idna,chardet,pillow
+# UPDATED: Added 'pyjnius' (Required for Device ID)
+requirements = python3,kivy==2.2.0,kivymd==1.1.1,requests,beautifulsoup4,soupsieve,plyer,urllib3,idna,chardet,pillow,openssl,certifi,pyjnius
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
