@@ -40,7 +40,7 @@ jobs:
           pip install python-minifier
 
       # SECURITY STEP: Obfuscate Code
-      # FIXED: Removed '--no-rename-globals' because it is the default behavior now
+      # This strips comments and docstrings but keeps variable names intact to prevent Kivy errors
       - name: Obfuscate Main Code
         run: |
           pyminify main.py --output main.py --remove-literal-statements
